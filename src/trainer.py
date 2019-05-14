@@ -83,13 +83,29 @@ def test(model, test_input_handle, configs, save_name):
     test_ims = test_input_handle.get_batch()
     test_dat = preprocess.reshape_patch(test_ims, configs.patch_size)
     test_dat = np.split(test_dat, configs.n_gpu)
-    img_gen = model.test(test_dat, real_input_flag_zero)
+    img_gen, hidden_states = model.test(test_dat, real_input_flag_zero)
 
     # Concat outputs of different gpus along batch
+    print(type(img_gen))
+    print('img_gen before concat:', len(img_gen))
     img_gen = np.concatenate(img_gen)
+    print('img_gen after concat:', img_gen.shape)
     img_gen = preprocess.reshape_patch_back(img_gen, configs.patch_size)
+    print('img_gen shape after reshape patch back:', img_gen.shape)
     img_out = img_gen[:, -output_length:]
     target_out = test_ims[:, -output_length:]
+
+    print('if breaks here, its ok.')
+    print('hidden states[0][0] type:', type(hidden_states[0][0]))
+    print('hidden states[0][0] shape:', hidden_states[0][0].shape)
+
+    # hidden states reshaping
+    print('hidden_states before concat:', len(hidden_states))
+    hidden_states = np.concatenate(hidden_states)
+    print('hidden states after concat:', hidden_states.shape)
+    hidden_states = preprocess.reshape_patch_back(hidden_states, configs.patch_size)
+    print('hidden states after reshape patch back:', hidden_states.shape)
+
     # MSE per frame
     for i in range(output_length):
       x = target_out[:, i]
@@ -109,6 +125,7 @@ def test(model, test_input_handle, configs, save_name):
     if batch_id <= configs.num_save_samples:
       path = os.path.join(res_path, str(batch_id))
       os.mkdir(path)
+      # saves ground truth test images
       for i in range(configs.total_length):
         if (i + 1) < 10:
           name = 'gt0' + str(i + 1) + '.png'
@@ -117,17 +134,24 @@ def test(model, test_input_handle, configs, save_name):
         file_name = os.path.join(path, name)
         img_gt = np.uint8(test_ims[0, i] * 255)
         cv2.imwrite(file_name, img_gt)
+      # saves predictions and hidden states
       for i in range(output_length):
         if (i + configs.input_length + 1) < 10:
-          name = 'pd0' + str(i + configs.input_length + 1) + '.png'
+          pd_name = 'pd0' + str(i + configs.input_length + 1) + '.png'
+          hidden_name = 'h0' + str(i + configs.input_length + 1) + '.png'
         else:
-          name = 'pd' + str(i + configs.input_length + 1) + '.png'
-        file_name = os.path.join(path, name)
+          pd_name = 'pd' + str(i + configs.input_length + 1) + '.png'
+          hidden_name = 'h' + str(i + configs.input_length + 1) + 'png'
+        pd_file_name = os.path.join(path, pd_name)
+        hidden_file_name = os.path.join(path, hidden_name)
         img_pd = img_gen[0, i]
         img_pd = np.maximum(img_pd, 0)
         img_pd = np.minimum(img_pd, 1)
         img_pd = np.uint8(img_pd * 255)
-        cv2.imwrite(file_name, img_pd)
+        # img_hidden =
+        cv2.imwrite(pd_file_name, img_pd)
+        # cv2.imwrite(hidden_file_name, img_hidden)
+
     test_input_handle.next()
 
   avg_mse = avg_mse / (batch_id * configs.batch_size * configs.n_gpu)

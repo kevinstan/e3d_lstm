@@ -20,6 +20,7 @@ from __future__ import print_function
 
 import os
 from src.models import eidetic_3d_lstm_net
+from src.models import concept_e3d_net
 import tensorflow as tf
 
 
@@ -76,7 +77,7 @@ class Model(object):
 
     grads = []
     loss_train = []
-    self.pred_seq = []
+    self.pred_seq, self.hidden_states_seq = [], []
     self.tf_lr = tf.placeholder(tf.float32, shape=[])
     self.itr = tf.placeholder(tf.float32, shape=[])
     self.params = dict()
@@ -92,11 +93,13 @@ class Model(object):
 
           gen_ims = output_list[0]
           loss = output_list[1]
+          hidden_states = output_list[2]
           loss_train.append(loss / self.configs.batch_size)
           # gradients
           all_params = tf.trainable_variables()
           grads.append(tf.gradients(loss, all_params))
           self.pred_seq.append(gen_ims)
+          self.hidden_states_seq.append(hidden_states)
 
     # if self.configs.n_gpu == 1:
     #     self.train_op = tf.train.AdamOptimizer(self.configs.lr).minimize(loss)
@@ -141,7 +144,8 @@ class Model(object):
     feed_dict = {self.x[i]: inputs[i] for i in range(self.configs.n_gpu)}
     feed_dict.update({self.real_input_flag: real_input_flag})
     gen_ims = self.sess.run(self.pred_seq, feed_dict)
-    return gen_ims
+    hidden_states = self.sess.run(self.hidden_states_seq, feed_dict)
+    return gen_ims, hidden_states
 
   def save(self, itr):
     checkpoint_path = os.path.join(self.configs.save_dir, 'model.ckpt')
@@ -156,6 +160,7 @@ class Model(object):
     """Contructs a model."""
     networks_map = {
         'e3d_lstm': eidetic_3d_lstm_net.rnn,
+        'concept_e3d': concept_e3d_net.rnn,
     }
 
     if self.configs.model_name in networks_map:

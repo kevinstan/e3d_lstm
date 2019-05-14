@@ -1,0 +1,5 @@
+kth_e3d_lstm_pretrain/
+mm_e3d_lstm_pretrain/
+data/
+results/
+checkpoints/
